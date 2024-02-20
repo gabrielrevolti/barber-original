@@ -1,7 +1,6 @@
 import { getServerSession } from "next-auth";
 import Header from "../_components/header";
 import { authOptions } from "../api/auth/[...nextauth]/route";
-import { signIn } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { db } from "../_lib/prisma";
 import BookingItem from "../_components/booking-item";
@@ -13,21 +12,34 @@ const bookingsPage = async () => {
   if(!session?.user) {
     return redirect("/")
   }
+
+  const [confirmedBookings, finishedBookings] = await Promise.all([
+    db.booking.findMany({
+      where: {
+        userId: (session.user as any).id,
+        date: {
+          gte: new Date()
+        }
+      },
+      include: {
+        service: true,
+        barbershop: true
+      }
+    }),
+    db.booking.findMany({
+      where: {
+        userId: (session.user as any).id,
+        date: {
+          lt: new Date()
+        }
+      },
+      include: {
+        service: true,
+        barbershop: true
+      }
+    })
+  ])
   
-  const bookings = await db.booking.findMany({
-    where: {
-      userId: (session.user as any).id
-    },
-    include: {
-      service: true,
-      barbershop: true
-    }
-  })
-
-  const confirmedBookings = bookings.filter(booking => isFuture(booking.date))
-  const fineshedBookings = bookings.filter(booking => isPast(booking.date))
-
-
   return (
     <>
       <Header/>
@@ -47,7 +59,7 @@ const bookingsPage = async () => {
         <h2 className="text-gray-400 uppercase font-bold text mt-6 mb-3">Finalizados</h2>
 
         <div className="flex flex-col gap-3">
-          {fineshedBookings.map(booking => (
+          {finishedBookings.map(booking => (
             <BookingItem key={booking.id} booking={booking}/>
           ))}
         </div>
